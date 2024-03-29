@@ -1,6 +1,8 @@
-# SPDX-License-Identifier: GPL-2.0-only
 #
-# Copyright (C) 2007-2020 OpenWrt.org
+# Copyright (C) 2007-2009 OpenWrt.org
+#
+# This is free software, licensed under the GNU General Public License v2.
+# See /LICENSE for more information.
 
 ifeq ($(TARGET_BUILD),1)
   PKG_BUILD_DIR:=$(LINUX_DIR)
@@ -99,9 +101,11 @@ define Kernel/Patch/Default
 		echo "generic patches directory is present. please move your patches to the pending directory" ; \
 		exit 1; \
 	fi
+ifneq ($(CONFIG_TARGET_ipq60xx),y)
 	$(call PatchDir,$(LINUX_DIR),$(GENERIC_BACKPORT_DIR),generic-backport/)
 	$(call PatchDir,$(LINUX_DIR),$(GENERIC_PATCH_DIR),generic/)
 	$(call PatchDir,$(LINUX_DIR),$(GENERIC_HACK_DIR),generic-hack/)
+endif
 	$(call PatchDir,$(LINUX_DIR),$(PATCH_DIR),platform/)
 endef
 
@@ -116,7 +120,7 @@ define Quilt/RefreshDir
 endef
 
 define Quilt/Refresh/Host
-	$(call Quilt/RefreshDir,$(HOST_BUILD_DIR),$(HOST_PATCH_DIR))
+	$(call Quilt/RefreshDir,$(HOST_BUILD_DIR),$(PATCH_DIR))
 endef
 
 define Quilt/Refresh/Package
@@ -128,9 +132,11 @@ define Quilt/Refresh/Kernel
 		echo "All kernel patches must start with either generic/ or platform/"; \
 		false; \
 	}
+ifneq ($(CONFIG_TARGET_ipq60xx),y)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(GENERIC_BACKPORT_DIR),generic-backport/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(GENERIC_PATCH_DIR),generic/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(GENERIC_HACK_DIR),generic-hack/)
+endif
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR),platform/)
 endef
 
@@ -159,7 +165,7 @@ define Quilt/Template
 		false; \
 	}
 	@[ -n "$$$$(ls $(1)/patches/series)" -o \
-	   "$$$$(cat $(1)/patches/series | $(MKHASH) md5)" = "$$(sort $(1)/patches/series | $(MKHASH) md5)" ] || { \
+	   "$$$$(cat $(1)/patches/series | mkhash md5)" = "$$(sort $(1)/patches/series | mkhash md5)" ] || { \
 		echo "The patches are not sorted in the right order. Please fix."; \
 		false; \
 	}
