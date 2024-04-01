@@ -18,6 +18,10 @@ endif
 
 DOWNLOAD_RDEP=$(STAMP_PREPARED) $(HOST_STAMP_PREPARED)
 
+# Export options for download.pl
+export DOWNLOAD_CHECK_CERTIFICATE:=$(CONFIG_DOWNLOAD_CHECK_CERTIFICATE)
+export DOWNLOAD_TOOL_CUSTOM:=$(CONFIG_DOWNLOAD_TOOL_CUSTOM)
+
 define dl_method_git
 $(if $(filter https://github.com/% git://github.com/%,$(1)),github_archive, \
   $(if $(filter https://git.codelinaro.org/% git://git.codelinaro.org/%,$(1)),codelinaro_archive, \
@@ -31,7 +35,7 @@ define dl_method
 $(strip \
   $(if $(filter git,$(2)),$(call dl_method_git,$(1),$(2)),
     $(if $(2),$(2), \
-      $(if $(filter @OPENWRT @APACHE/% @GITHUB/% @GNOME/% @GNU/% @KERNEL/% @SF/% @SAVANNAH/% ftp://% http://% https://% file://%,$(1)),default, \
+      $(if $(filter @OPENWRT @APACHE/% @DEBIAN/% @GITHUB/% @GNOME/% @GNU/% @KERNEL/% @SF/% @SAVANNAH/% ftp://% http://% https://% file://%,$(1)),default, \
         $(if $(filter git://%,$(1)),$(call dl_method_git,$(1),$(2)), \
           $(if $(filter svn://%,$(1)),svn, \
             $(if $(filter cvs://%,$(1)),cvs, \
@@ -52,7 +56,7 @@ endef
 # code for creating tarballs from cvs/svn/git/bzr/hg/darcs checkouts - useful for mirror support
 dl_pack/bz2=bzip2 -c > $(1)
 dl_pack/gz=gzip -nc > $(1)
-dl_pack/xz=xz -T0 -zc -7e > $(1)
+dl_pack/xz=xz -zc -7e > $(1)
 dl_pack/zst=zstd -T0 --ultra -20 -c > $(1)
 dl_pack/unknown=$(error ERROR: Unknown pack format for file $(1))
 define dl_pack
@@ -61,6 +65,21 @@ endef
 define dl_tar_pack
 	$(TAR) --numeric-owner --owner=0 --group=0 --mode=a-s --sort=name \
 		$$$${TAR_TIMESTAMP:+--mtime="$$$$TAR_TIMESTAMP"} -c $(2) | $(call dl_pack,$(1))
+endef
+
+gen_sha256sum = $(shell $(STAGING_DIR_HOST)/bin/mkhash sha256 $(DL_DIR)/$(1))
+
+# Used in Build/CoreTargets and HostBuild/Core as an integrity check for
+# downloaded files.  It will add a FORCE rule if the sha256 hash does not
+# match, so that the download can be more thoroughly handled by download.pl.
+define check_download_integrity
+  expected_hash:=$(strip $(if $(filter-out x,$(HASH)),$(HASH),$(MIRROR_HASH)))
+  $$(if $$(and $(FILE),$$(wildcard $(DL_DIR)/$(FILE)), \
+	       $$(filter undefined,$$(flavor DownloadChecked/$(FILE)))), \
+    $$(eval DownloadChecked/$(FILE):=1) \
+    $$(if $$(filter-out $$(call gen_sha256sum,$(FILE)),$$(expected_hash)), \
+      $(DL_DIR)/$(FILE): FORCE) \
+  )
 endef
 
 ifdef CHECK
@@ -77,8 +96,6 @@ ifndef FIXUP
 else
   check_warn = $(if $(filter-out undefined,$(origin F_$(1))),$(filter ,$(shell $(call F_$(1),$(2),$(3),$(4)) >&2)),$(check_warn_nofix))
 endif
-
-gen_sha256sum = $(shell mkhash sha256 $(DL_DIR)/$(1))
 
 ifdef FIXUP
 F_hash_deprecated = $(SCRIPT_DIR)/fixup-makefile.pl $(CURDIR)/Makefile fix-hash $(3) $(call gen_sha256sum,$(1)) $(2)
@@ -341,7 +358,7 @@ define Download
 	mkdir -p $(DL_DIR)
 	$(call locked, \
 		$(if $(DownloadMethod/$(call dl_method,$(URL),$(PROTO))), \
-			[ -f "$(DL_DIR)/$(FILE)" ] || ( $(call DownloadMethod/$(call dl_method,$(URL),$(PROTO)),check,$(if $(filter default,$(1)),PKG_,Download/$(1):)) ), \
+			$(call DownloadMethod/$(call dl_method,$(URL),$(PROTO)),check,$(if $(filter default,$(1)),PKG_,Download/$(1):)), \
 			$(DownloadMethod/unknown) \
 		),\
 		$(FILE))

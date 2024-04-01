@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# 
+#
 # Copyright (C) 2006 Felix Fietkau <nbd@nbd.name>
 #
 # This is free software, licensed under the GNU General Public License v2.
@@ -68,10 +68,10 @@ sub config_add($$$) {
 	my $cfg2 = shift;
 	my $mod_plus = shift;
 	my %config;
-	
+
 	for ($cfg1, $cfg2) {
 		my %cfg = %$_;
-		
+
 		foreach my $config (keys %cfg) {
 			if ($mod_plus and $config{$config}) {
 				next if $config{$config} eq "y";
@@ -88,7 +88,7 @@ sub config_diff($$$) {
 	my $cfg2 = shift;
 	my $new_only = shift;
 	my %config;
-	
+
 	foreach my $config (keys %$cfg2) {
 		if (!defined($cfg1->{$config}) or $cfg1->{$config} ne $cfg2->{$config}) {
 			next if $new_only and !defined($cfg1->{$config}) and $cfg2->{$config} eq '#undef';
@@ -102,8 +102,15 @@ sub config_sub($$) {
 	my $cfg1 = shift;
 	my $cfg2 = shift;
 	my %config = %{$cfg1};
-	
-	foreach my $config (keys %$cfg2) {
+	my @keys = map {
+		my $expr = $_;
+		$expr =~ /[?.*]/ ?
+			map {
+				/^$expr$/ ? $_ : ()
+			} keys %config : $expr;
+	} keys %$cfg2;
+
+	foreach my $config (@keys) {
 		delete $config{$config};
 	}
 	return \%config;
